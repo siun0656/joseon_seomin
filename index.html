@@ -481,6 +481,10 @@ const Sound = {
 const DnD = {
   selected:null,
   attach(el, o){
+    // 터치 기기: 스크롤 영역 안에서도 브라우저가 터치를 가로채지 않도록
+    el.style.touchAction='none'; el.setAttribute('draggable','false');
+    el.querySelectorAll('img').forEach(i=>{ i.setAttribute('draggable','false'); i.style.touchAction='none'; });
+    el.addEventListener('dragstart', e=>e.preventDefault());
     el.addEventListener('pointerdown', e => this._start(e, el, o));
   },
   _hit(x,y,targets){
@@ -495,6 +499,7 @@ const DnD = {
     e.preventDefault(); e.stopPropagation();
     const S = Game.scale, r = el.getBoundingClientRect(); const ox=e.clientX-r.left, oy=e.clientY-r.top;
     const sx=e.clientX, sy=e.clientY; let ghost=null, moved=false, hover=null;
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
     const T = () => (typeof o.targets==='function'? o.targets(el) : o.targets) || [];
     const mv = ev => {
       if(!moved){ if(Math.hypot(ev.clientX-sx,ev.clientY-sy)<7) return; moved=true;
@@ -1830,7 +1835,7 @@ Game.scenes.map = {
    ================================================================ */
 'use strict';
 document.head.append(h('style',{},`
-.book-cover{width:150px;height:210px;position:relative;border-radius:4px 8px 8px 4px;box-shadow:inset 6px 0 0 rgba(0,0,0,.18),0 8px 16px rgba(0,0,0,.45);cursor:pointer;transition:transform .2s}
+.book-cover{touch-action:none;-webkit-touch-callout:none;width:150px;height:210px;position:relative;border-radius:4px 8px 8px 4px;box-shadow:inset 6px 0 0 rgba(0,0,0,.18),0 8px 16px rgba(0,0,0,.45);cursor:pointer;transition:transform .2s}
 .book-cover:hover{transform:translateY(-6px) rotate(-1deg)}
 .book-cover .strip{position:absolute;left:50%;top:18px;transform:translateX(-50%);width:44px;height:150px;background:#f6eedb;border:2px solid #5a4630;display:flex;align-items:center;justify-content:center;
   writing-mode:vertical-rl;font-family:var(--serif);font-weight:900;font-size:24px;letter-spacing:.12em;color:#2a1d10}
@@ -1928,7 +1933,7 @@ const S1 = {
   /* ---- 미션 A : 책 대여하기 ---- */
   async rent(root){
     const T=TaskPanel(root,{title:'세책방 주인이 되어 보자', step:'미션 1', dark:true, width:1440,
-      sub:'손님이 원하는 책을 책장에서 골라 <b>손님에게 끌어다</b> 건네주세요. 책을 누르면 어떤 책인지 살펴볼 수 있어요.'});
+      sub:'손님이 원하는 책을 책장에서 골라 <b>손님에게 끌어다</b> 건네주세요. 책을 누르면 어떤 책인지 살펴보고 바로 건네줄 수도 있어요.'});
     const body=T.body;
     const customers=[
       {name:'김 서방', robe:'#d9e1e6', hat:'gat', say:'주인장! 나는 한자를 잘 몰라서 말이오. <b>한글로 쓰인</b>, 눈먼 아버지를 위해 애쓰는 <b>효녀 이야기</b>를 빌려 주시오.', want:'sim',
@@ -1952,14 +1957,15 @@ const S1 = {
     showCustomer();
     covers.forEach(cv=>{
       DnD.attach(cv,{targets:()=>[custBox], onTap:async el=>{ const b=BOOKS.find(x=>x.id===el.dataset.id); Sound.sfx('page');
-          await Game.modal({title:`「${b.kor}」 (${b.hanja})`, html:`<p>${b.desc}</p><p style="color:#7a5a3a">쓰인 글자 : <b>${b.lang}</b>${b.novel?' · <b>한글소설</b>':''}</p>`, buttons:[{label:'책장에 두기',value:1,cls:'ghost'}], dark:true}); },
-        onDrop:async (t,el)=>{
+          await Game.modal({title:`「${b.kor}」 (${b.hanja})`, html:`<p>${b.desc}</p><p style="color:#7a5a3a">쓰인 글자 : <b>${b.lang}</b>${b.novel?' · <b>한글소설</b>':''}</p>`, buttons:[{label:'손님에게 건네주기',value:'give'},{label:'책장에 두기',value:1,cls:'ghost'}], dark:true}).then(v=>{ if(v==='give') giveBook(el); }); },
+        onDrop:(t,el)=>giveBook(el)});
+    });
+    async function giveBook(el){ {
           const c=customers[ci]; const id=el.dataset.id;
           if(id===c.want){ Sound.sfx('ok'); el.style.visibility='hidden'; await Game.ok('알맞은 책을 건넸어요!', ci===0?'김 서방은 한자를 몰라도 한글로 쓰인 「심청전」을 읽을 수 있어요.':'「홍길동전」은 신분 차별과 나쁜 관리를 비판한 한글소설이에요.');
             el.style.visibility=''; ci++; if(ci<customers.length) showCustomer(); else stepB(); }
           else { await Game.no('이 책이 아닌 것 같아요', c.wrong[id]||'손님의 말을 다시 읽어 보세요.', ['손님이 원하는 <b>글자</b>와 <b>이야기 내용</b>을 함께 확인해요.']); }
-        }});
-    });
+    } }
     // B : 대여 과정 순서
     const stepB=()=>{
       body.innerHTML=''; T.setTitle('책을 빌려주는 과정 정리하기'); T.setSub('세책방에서 책을 빌리고 돌려주기까지의 과정을 <b>순서대로</b> 놓아 보세요.');
